@@ -1,6 +1,5 @@
-import React from 'react';
 import { Summary } from '../types';
-import { TrendingUp, CreditCard, Clock, CheckCircle, RefreshCw, AlertCircle } from 'lucide-react';
+import { TrendingUp, CreditCard, Layers, CheckCircle, Clock, RefreshCw, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -13,283 +12,184 @@ interface DashboardProps {
 }
 
 export function Dashboard({ summary, onSync, isSyncing, syncMetadata }: DashboardProps) {
-  const formatCurrency = (val: number) => 
-    new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF' }).format(val);
+  const fmt = (val: number) =>
+    new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF', maximumFractionDigits: 0 }).format(val);
 
   const lastSyncDate = syncMetadata?.lastSync ? new Date(syncMetadata.lastSync) : null;
   const isSyncError = syncMetadata?.status === 'error';
 
-  const [testResult, setTestResult] = React.useState<any>(null);
-  const [isTesting, setIsTesting] = React.useState(false);
-
-  const handleTest = async () => {
-    setIsTesting(true);
-    try {
-      const res = await fetch('/api/test-bexio');
-      const data = await res.json();
-      if (res.ok) setTestResult(data);
-      else throw new Error(data.error);
-    } catch (err: any) {
-      alert(`Test failed: ${err.message}`);
-    } finally {
-      setIsTesting(false);
-    }
-  };
-
-  const [generaliDebug, setGeneraliDebug] = React.useState<any>(null);
-  const [isDebugLoading, setIsDebugLoading] = React.useState(false);
-
-  const handleDebugGenerali = async () => {
-    setIsDebugLoading(true);
-    try {
-      const res = await fetch('/api/debug/generali');
-      const data = await res.json();
-      setGeneraliDebug(data);
-    } catch (err: any) {
-      alert(`Debug failed: ${err.message}`);
-    } finally {
-      setIsDebugLoading(false);
-    }
-  };
-
   if (!summary) {
     return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Revenue Overview</h2>
-            <div className="text-sm text-gray-500">
-              {isSyncError ? (
-                <span className="text-red-500 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  Sync failed: {syncMetadata.error}
-                </span>
-              ) : (
-                'No data synced yet.'
-              )}
-            </div>
+            <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Revenue Overview</h2>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {isSyncError
+                ? <span className="text-red-400">Sync failed — {syncMetadata.error}</span>
+                : 'No data yet. Run your first sync to get started.'}
+            </p>
           </div>
-          <div className="flex gap-3">
-            <button 
-              onClick={handleDebugGenerali}
-              disabled={isDebugLoading}
-              className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={cn("w-4 h-4", isDebugLoading && "animate-spin")} />
-              {isDebugLoading ? 'Fetching...' : 'Debug: Inspect Invoice Data'}
-            </button>
-            <button 
-              onClick={handleTest}
-              disabled={isTesting}
-              className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={cn("w-4 h-4", isTesting && "animate-spin")} />
-              {isTesting ? 'Testing...' : 'Test Connection'}
-            </button>
-            <button 
-              onClick={onSync}
-              disabled={isSyncing}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-blue-900/20 disabled:opacity-50"
-            >
-              <RefreshCw className={cn("w-5 h-5", isSyncing && "animate-spin")} />
-              {isSyncing ? 'Syncing...' : 'Sync with Bexio Now'}
-            </button>
-          </div>
+          <SyncButton onSync={onSync} isSyncing={isSyncing} />
         </div>
 
-        {generaliDebug && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white border border-blue-200 p-6 rounded-2xl space-y-4 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest">Raw Invoice Data (Debug)</h3>
-              <button onClick={() => setGeneraliDebug(null)} className="text-gray-400 hover:text-gray-600">Close</button>
-            </div>
-            <pre className="bg-gray-50 p-4 rounded-xl text-[10px] font-mono text-gray-600 overflow-x-auto border border-gray-100">
-              {JSON.stringify(generaliDebug, null, 2)}
-            </pre>
-          </motion.div>
-        )}
-
-        {testResult && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white border border-green-200 p-6 rounded-2xl space-y-4 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 text-green-600">
-                <CheckCircle className="w-5 h-5" />
-                <h3 className="text-sm font-bold uppercase tracking-widest">Connection successful!</h3>
-              </div>
-              <button onClick={() => setTestResult(null)} className="text-gray-400 hover:text-gray-600">Close</button>
-            </div>
-            <pre className="bg-gray-50 p-4 rounded-xl text-[10px] font-mono text-gray-600 overflow-x-auto border border-gray-100">
-              {JSON.stringify(testResult, null, 2)}
-            </pre>
-          </motion.div>
-        )}
-
-        <div className="flex flex-col items-center justify-center h-96 bg-white border border-gray-200 rounded-3xl p-12 text-center border-dashed">
-          <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mb-6">
-            <RefreshCw className="w-10 h-10 text-blue-600" />
+        {/* Empty state */}
+        <div className="flex-1 flex flex-col items-center justify-center bg-white border border-dashed border-gray-200 rounded-2xl p-16 text-center">
+          <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-5">
+            <RefreshCw className="w-7 h-7 text-blue-500" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">No Data Available</h3>
-          <p className="text-gray-500 max-w-sm mb-8">
-            Your dashboard is currently empty. Connect to Bexio to import your revenue, invoices, and client data.
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No data available</h3>
+          <p className="text-sm text-gray-400 max-w-xs mb-8 leading-relaxed">
+            Connect to Bexio and import your revenue, invoices, and client data.
           </p>
-          <button 
-            onClick={onSync}
-            disabled={isSyncing}
-            className="flex items-center gap-2 bg-gray-900 text-white px-8 py-4 rounded-2xl font-bold hover:bg-gray-800 transition-all disabled:opacity-50"
-          >
-            {isSyncing ? <RefreshCw className="w-5 h-5 animate-spin" /> : null}
-            {isSyncing ? 'Syncing Data...' : 'Start Initial Sync'}
-          </button>
+          <SyncButton onSync={onSync} isSyncing={isSyncing} large />
         </div>
       </div>
     );
   }
 
   const cards = [
-    { 
-      title: 'ARR BOOKED (YTD)', 
-      value: summary.arr, 
-      icon: TrendingUp, 
-      color: 'text-green-500', 
-      bg: 'bg-green-500/10',
-      target: 6000000,
-      description: 'Annual Recurring Revenue'
+    {
+      label: 'ARR Booked (YTD)',
+      value: summary.arr,
+      icon: TrendingUp,
+      accent: 'text-emerald-500',
+      accentBg: 'bg-emerald-50',
+      bar: 'bg-emerald-500',
+      target: 6_000_000,
+      sub: 'Annual Recurring Revenue',
     },
-    { 
-      title: 'PROFESSIONAL SERVICES / PILOT (YTD)', 
-      value: summary.pilot, 
-      icon: CreditCard, 
-      color: 'text-blue-500', 
-      bg: 'bg-blue-500/10',
-      target: 3000000,
-      description: 'Pilot & Subscription revenue'
+    {
+      label: 'Professional Services (YTD)',
+      value: summary.pilot,
+      icon: CreditCard,
+      accent: 'text-blue-500',
+      accentBg: 'bg-blue-50',
+      bar: 'bg-blue-500',
+      target: 3_000_000,
+      sub: 'Pilot & subscription revenue',
     },
-    { 
-      title: 'OTHER REVENUE (YTD)', 
-      value: summary.onetime, 
-      icon: CheckCircle, 
-      color: 'text-purple-500', 
-      bg: 'bg-purple-500/10',
-      description: 'Unclassified — check invoice position labels'
-    }
+    {
+      label: 'Other Revenue (YTD)',
+      value: summary.onetime,
+      icon: Layers,
+      accent: 'text-violet-500',
+      accentBg: 'bg-violet-50',
+      bar: null,
+      target: null,
+      sub: 'Unclassified invoices',
+    },
   ];
 
   const cashflow = [
-    { title: 'CASHFLOW RECEIVED', value: summary.cashflowReceived, icon: CheckCircle, color: 'text-emerald-500' },
-    { title: 'CASHFLOW PENDING', value: summary.cashflowPending, icon: Clock, color: 'text-orange-500' }
+    { label: 'Received', value: summary.cashflowReceived, icon: CheckCircle, accent: 'text-emerald-500', accentBg: 'bg-emerald-50' },
+    { label: 'Pending', value: summary.cashflowPending, icon: Clock, accent: 'text-amber-500', accentBg: 'bg-amber-50' },
   ];
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Revenue Overview</h2>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Revenue Overview</h2>
+          <p className="text-sm mt-0.5 flex items-center gap-1.5">
             {isSyncError ? (
-              <span className="text-red-500 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                Last sync failed
+              <span className="text-red-400 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" /> Last sync failed
+              </span>
+            ) : lastSyncDate && !isNaN(lastSyncDate.getTime()) ? (
+              <span className="text-gray-400">
+                Last synced {format(lastSyncDate, "MMM d 'at' HH:mm")}
               </span>
             ) : (
-              <span>Last synced: {lastSyncDate && !isNaN(lastSyncDate.getTime()) ? format(lastSyncDate, 'MMM d, HH:mm') : 'Unknown'}</span>
+              <span className="text-gray-400">Never synced</span>
             )}
-          </div>
+          </p>
         </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={handleDebugGenerali}
-            disabled={isDebugLoading}
-            className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={cn("w-4 h-4", isDebugLoading && "animate-spin")} />
-            {isDebugLoading ? 'Fetching...' : 'Debug: Inspect Invoice Data'}
-          </button>
-          <button 
-            onClick={onSync}
-            disabled={isSyncing}
-            className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
-          </button>
-        </div>
+        <SyncButton onSync={onSync} isSyncing={isSyncing} />
       </div>
 
-      {generaliDebug && (
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-blue-200 p-6 rounded-2xl space-y-4 shadow-sm"
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest">Raw Invoice Data (Debug)</h3>
-            <button onClick={() => setGeneraliDebug(null)} className="text-gray-400 hover:text-gray-600">Close</button>
-          </div>
-          <pre className="bg-gray-50 p-4 rounded-xl text-[10px] font-mono text-gray-600 overflow-x-auto border border-gray-100">
-            {JSON.stringify(generaliDebug, null, 2)}
-          </pre>
-        </motion.div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {cards.map((card, i) => (
-          <motion.div 
-            key={card.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="bg-white border border-gray-200 p-6 rounded-2xl flex flex-col justify-between shadow-sm"
-          >
-            <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{card.title}</p>
-              <h3 className={cn("text-4xl font-bold mb-2", card.color)}>{formatCurrency(card.value)}</h3>
+      {/* Revenue cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {cards.map((card, i) => {
+          const pct = card.target ? Math.min(100, (card.value / card.target) * 100) : 0;
+          return (
+            <motion.div
+              key={card.label}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08 }}
+              className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', card.accentBg)}>
+                  <card.icon className={cn('w-4.5 h-4.5', card.accent)} size={18} />
+                </div>
+                {card.target && (
+                  <span className={cn('text-xs font-semibold tabular-nums', card.accent)}>
+                    {pct.toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              <p className="text-xs font-medium text-gray-400 mb-1">{card.label}</p>
+              <p className={cn('text-3xl font-bold tracking-tight mb-1', card.accent)}>{fmt(card.value)}</p>
               {card.target && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>Target: {formatCurrency(card.target)}</span>
-                    <span>{((card.value / card.target) * 100).toFixed(1)}% achieved</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                    <motion.div 
+                <>
+                  <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden mt-3 mb-1">
+                    <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(100, (card.value / card.target) * 100)}%` }}
-                      className={cn("h-full", card.color.replace('text-', 'bg-'))}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.8, delay: i * 0.08 + 0.2 }}
+                      className={cn('h-full rounded-full', card.bar)}
                     />
                   </div>
-                </div>
+                  <p className="text-[11px] text-gray-400">Target {fmt(card.target)}</p>
+                </>
               )}
-              <p className="mt-4 text-xs text-gray-600">{card.description}</p>
-            </div>
-          </motion.div>
-        ))}
+              {!card.target && <p className="text-[11px] text-gray-400 mt-1">{card.sub}</p>}
+            </motion.div>
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Cashflow */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {cashflow.map((item, i) => (
-          <motion.div 
-            key={item.title}
-            initial={{ opacity: 0, x: i === 0 ? -20 : 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white border border-gray-200 p-6 rounded-2xl flex items-center gap-6 shadow-sm"
+          <motion.div
+            key={item.label}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 + i * 0.08 }}
+            className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex items-center gap-5"
           >
-            <div className={cn("p-4 rounded-xl bg-gray-50", item.color)}>
-              <item.icon className="w-8 h-8" />
+            <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0', item.accentBg)}>
+              <item.icon className={cn('w-5 h-5', item.accent)} />
             </div>
-            <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{item.title}</p>
-              <h3 className="text-3xl font-bold text-gray-900">{formatCurrency(item.value)}</h3>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-400 mb-0.5">Cashflow {item.label}</p>
+              <p className="text-2xl font-bold text-gray-900 tracking-tight">{fmt(item.value)}</p>
             </div>
+            <ArrowUpRight className={cn('ml-auto w-4 h-4 shrink-0', item.accent)} />
           </motion.div>
         ))}
       </div>
     </div>
+  );
+}
+
+function SyncButton({ onSync, isSyncing, large }: { onSync: () => void; isSyncing: boolean; large?: boolean }) {
+  return (
+    <button
+      onClick={onSync}
+      disabled={isSyncing}
+      className={cn(
+        'flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all shadow-sm disabled:opacity-50',
+        large ? 'px-6 py-3 text-sm' : 'px-4 py-2 text-sm'
+      )}
+    >
+      <RefreshCw className={cn('w-4 h-4', isSyncing && 'animate-spin')} />
+      {isSyncing ? 'Syncing…' : 'Sync Now'}
+    </button>
   );
 }
