@@ -6,8 +6,9 @@ import { Auth } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
 import { ClientSplit } from './components/ClientSplit';
 import { OutstandingInvoices } from './components/OutstandingInvoices';
+import { Settings } from './components/Settings';
 import { Summary, ClientRevenue, Invoice } from './types';
-import { LayoutDashboard, Users, FileText, LogOut, RefreshCw, AlertCircle } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, LogOut, RefreshCw, AlertCircle, Settings as SettingsIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 
@@ -65,7 +66,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'clients' | 'invoices'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'clients' | 'invoices' | 'settings'>('dashboard');
   
   const [summary, setSummary] = useState<Summary | null>(null);
   const [clients, setClients] = useState<ClientRevenue[]>([]);
@@ -170,6 +171,7 @@ export default function App() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'clients', label: 'Client Split', icon: Users },
     { id: 'invoices', label: 'Outstanding', icon: FileText },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
 
   return (
@@ -253,6 +255,7 @@ export default function App() {
               {activeTab === 'dashboard' && <Dashboard summary={summary} onSync={handleSync} isSyncing={isSyncing} syncMetadata={syncMetadata} />}
               {activeTab === 'clients' && <ClientSplit clients={clients} />}
               {activeTab === 'invoices' && <OutstandingInvoices invoices={invoices} />}
+              {activeTab === 'settings' && <Settings user={user} />}
             </motion.div>
           </AnimatePresence>
         </div>

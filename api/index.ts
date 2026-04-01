@@ -28,12 +28,24 @@ app.use(express.json());
 
 const BEXIO_API_URL = "https://api.bexio.com/2.0";
 
-async function syncBexioData() {
-  const apiKey = process.env.BEXIO_API_KEY;
-  if (!apiKey) {
-    throw new Error("BEXIO_API_KEY environment variable is not set. Please add it to your Vercel project settings.");
-  }
+// Retrieve API key: prefer env var, fall back to Firestore config
+async function getBexioApiKey(): Promise<string> {
+  if (process.env.BEXIO_API_KEY) return process.env.BEXIO_API_KEY;
+  const snap = await getDb().doc("config/bexio").get();
+  const key = snap.data()?.apiKey;
+  if (!key) throw new Error("Bexio API key is not configured. Go to Settings to add it.");
+  return key;
+}
 
+// Helper: verify Firebase ID token from Authorization header
+async function verifyAuthToken(req: express.Request): Promise<admin.auth.DecodedIdToken> {
+  const token = req.headers.authorization?.split("Bearer ")[1];
+  if (!token) throw new Error("Unauthorized");
+  return admin.auth().verifyIdToken(token);
+}
+
+async function syncBexioData() {
+  const apiKey = await getBexioApiKey();
   const firestore = getDb();
   console.log("Starting Bexio sync...");
 
@@ -168,6 +180,33 @@ async function syncBexioData() {
 }
 
 // API Routes
+
+// Settings: save Bexio API key securely to Firestore (server-side only)
+app.post("/api/settings", async (req, res) => {
+  try {
+    await verifyAuthToken(req);
+    const { bexioApiKey } = req.body;
+    if (!bexioApiKey || typeof bexioApiKey !== "string" || !bexioApiKey.trim()) {
+      return res.status(400).json({ error: "bexioApiKey is required" });
+    }
+    await getDb().doc("config/bexio").set({ apiKey: bexioApiKey.trim() }, { merge: true });
+    res.json({ status: "ok" });
+  } catch (err: any) {
+    res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+  }
+});
+
+// Settings: check whether an API key is stored (does not return the key)
+app.get("/api/settings/status", async (req, res) => {
+  try {
+    await verifyAuthToken(req);
+    const snap = await getDb().doc("config/bexio").get();
+    res.json({ configured: snap.exists && !!snap.data()?.apiKey });
+  } catch (err: any) {
+    res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+  }
+});
+
 app.get("/api/sync", async (_req, res) => {
   try {
     const data = await syncBexioData();
@@ -179,9 +218,8 @@ app.get("/api/sync", async (_req, res) => {
 });
 
 app.get("/api/test-bexio", async (_req, res) => {
-  const apiKey = process.env.BEXIO_API_KEY;
-  if (!apiKey) return res.status(400).json({ error: "BEXIO_API_KEY not set" });
   try {
+    const apiKey = await getBexioApiKey();
     const headers = { Accept: "application/json", Authorization: `Bearer ${apiKey}` };
     const result = await axios.get(`${BEXIO_API_URL}/kb_invoice`, { headers });
     const invoices = result.data;
@@ -199,9 +237,8 @@ app.get("/api/test-bexio", async (_req, res) => {
 });
 
 app.get("/api/debug/generali", async (_req, res) => {
-  const apiKey = process.env.BEXIO_API_KEY;
-  if (!apiKey) return res.status(400).json({ error: "BEXIO_API_KEY not set" });
   try {
+    const apiKey = await getBexioApiKey();
     const headers = { Accept: "application/json", Authorization: `Bearer ${apiKey}` };
     const result = await axios.get(`${BEXIO_API_URL}/kb_invoice`, { headers });
     const invoices = result.data;

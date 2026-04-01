@@ -67,5 +67,10 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
+
+    // Config (API keys etc.) — only accessible via Admin SDK on the server, never from the client
+    match /config/{docId} {
+      allow read, write: if false;
+    }
   }
 }
