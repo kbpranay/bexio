@@ -30,12 +30,25 @@ app.use(express.json());
 
 const BEXIO_API_URL = "https://api.bexio.com/2.0";
 
+// Retrieve API key: prefer env var, fall back to Firestore config
+async function getBexioApiKey(): Promise<string> {
+  if (process.env.BEXIO_API_KEY) return process.env.BEXIO_API_KEY;
+  const snap = await db.doc("config/bexio").get();
+  const key = snap.data()?.apiKey;
+  if (!key) throw new Error("Bexio API key is not configured. Go to Settings to add it.");
+  return key;
+}
+
+// Helper: verify Firebase ID token from Authorization header
+async function verifyAuthToken(req: express.Request): Promise<admin.auth.DecodedIdToken> {
+  const token = req.headers.authorization?.split("Bearer ")[1];
+  if (!token) throw new Error("Unauthorized");
+  return admin.auth().verifyIdToken(token);
+}
+
 // Bexio Sync Logic
 async function syncBexioData() {
-  const apiKey = process.env.BEXIO_API_KEY;
-  if (!apiKey) {
-    throw new Error("BEXIO_API_KEY environment variable is not set. Please add it to the Secrets panel.");
-  }
+  const apiKey = await getBexioApiKey();
 
   console.log("Starting Bexio sync...");
 
@@ -273,20 +286,40 @@ cron.schedule('0 6 * * *', async () => {
 });
 
 // API Routes
-app.get("/api/debug/generali", async (req, res) => {
-  const apiKey = process.env.BEXIO_API_KEY;
-  if (!apiKey) return res.status(400).json({ error: "BEXIO_API_KEY not set" });
 
+// Settings: save Bexio API key securely to Firestore (server-side only)
+app.post("/api/settings", async (req, res) => {
   try {
+    await verifyAuthToken(req);
+    const { bexioApiKey } = req.body;
+    if (!bexioApiKey || typeof bexioApiKey !== "string" || !bexioApiKey.trim()) {
+      return res.status(400).json({ error: "bexioApiKey is required" });
+    }
+    await db.doc("config/bexio").set({ apiKey: bexioApiKey.trim() }, { merge: true });
+    res.json({ status: "ok" });
+  } catch (err: any) {
+    res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+  }
+});
+
+// Settings: check whether an API key is stored (does not return the key)
+app.get("/api/settings/status", async (req, res) => {
+  try {
+    await verifyAuthToken(req);
+    const snap = await db.doc("config/bexio").get();
+    res.json({ configured: snap.exists && !!snap.data()?.apiKey });
+  } catch (err: any) {
+    res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+  }
+});
+
+app.get("/api/debug/generali", async (req, res) => {
+  try {
+    const apiKey = await getBexioApiKey();
     const headers = { Accept: "application/json", Authorization: `Bearer ${apiKey}` };
     const invoicesRes = await axios.get(`${BEXIO_API_URL}/kb_invoice`, { headers });
     const invoices = invoicesRes.data;
-    
-    if (invoices.length === 0) {
-      return res.json({ message: "No invoices found at all." });
-    }
-
-    // Return the first invoice to inspect its structure
+    if (!invoices.length) return res.json({ message: "No invoices found at all." });
     res.json(invoices[0]);
   } catch (err: any) {
     res.status(err.response?.status || 500).json({ error: err.message });
@@ -294,32 +327,18 @@ app.get("/api/debug/generali", async (req, res) => {
 });
 
 app.get("/api/test-bexio", async (req, res) => {
-  const apiKey = process.env.BEXIO_API_KEY;
-  if (!apiKey) return res.status(400).json({ error: "BEXIO_API_KEY not set" });
-
   try {
+    const apiKey = await getBexioApiKey();
     const headers = { Accept: "application/json", Authorization: `Bearer ${apiKey}` };
     const invoicesRes = await axios.get(`${BEXIO_API_URL}/kb_invoice`, { headers });
     const invoices = invoicesRes.data;
-    
-    if (invoices.length === 0) {
-      return res.json({ status: "success", message: "No invoices found." });
-    }
-
-    const firstInvoice = invoices[0];
-    const dateFields = {
-      date: firstInvoice.date,
-      document_date: firstInvoice.document_date,
-      is_valid_from: firstInvoice.is_valid_from,
-      created_at: firstInvoice.created_at,
-      issue_date: firstInvoice.issue_date
-    };
-
-    res.json({ 
-      status: "success", 
+    if (!invoices.length) return res.json({ status: "success", message: "No invoices found." });
+    const first = invoices[0];
+    res.json({
+      status: "success",
       totalInvoices: invoices.length,
-      availableKeys: Object.keys(firstInvoice),
-      sampleDateFields: dateFields
+      availableKeys: Object.keys(first),
+      sampleDateFields: { date: first.date, is_valid_from: first.is_valid_from, is_valid_to: first.is_valid_to, created_at: first.created_at }
     });
   } catch (err: any) {
     res.status(err.response?.status || 500).json({ error: err.message, details: err.response?.data });
