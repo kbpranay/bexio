@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "Summary": {
+      "title": "Revenue Summary",
+      "description": "Aggregated revenue metrics.",
+      "type": "object",
+      "properties": {
+        "arr": { "type": "number", "description": "Total Annual Recurring Revenue" },
+        "pilot": { "type": "number", "description": "Total Pilot/Subscription revenue" },
+        "onetime": { "type": "number", "description": "Total One-time revenue" },
+        "cashflowReceived": { "type": "number", "description": "Total cash received" },
+        "cashflowPending": { "type": "number", "description": "Total cash pending" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["arr", "pilot", "onetime", "cashflowReceived", "cashflowPending", "updatedAt"]
+    },
+    "ClientRevenue": {
+      "title": "Client Revenue",
+      "description": "Revenue breakdown for a specific client.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "arr": { "type": "number" },
+        "pilot": { "type": "number" },
+        "onetime": { "type": "number" },
+        "total": { "type": "number" }
+      },
+      "required": ["clientId", "clientName", "arr", "pilot", "onetime", "total"]
+    },
+    "Invoice": {
+      "title": "Outstanding Invoice",
+      "description": "Details of an unpaid invoice.",
+      "type": "object",
+      "properties": {
+        "invoiceId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "clientName": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "dueDate": { "type": "string", "format": "date" },
+        "daysOutstanding": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["invoiceId", "invoiceNumber", "clientName", "amount", "currency", "dueDate", "daysOutstanding"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "User profile and role information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/summary/latest": {
+      "schema": "Summary",
+      "description": "The latest aggregated revenue summary."
+    },
+    "/clients/{clientId}": {
+      "schema": "ClientRevenue",
+      "description": "Revenue data per client."
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "Invoice",
+      "description": "Outstanding invoices."
+    },
+    "/metadata/sync": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "lastSync": { "type": "string", "format": "date-time" }
+        }
+      },
+      "description": "Sync metadata."
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Bexio Revenue Dashboard",
+  "description": "A dashboard for tracking ARR, Pilot revenue, and outstanding invoices from Bexio.",
+  "requestFramePermissions": []
+}
