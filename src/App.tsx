@@ -39,7 +39,7 @@ interface FirestoreErrorInfo {
   }
 }
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, setError: (msg: string) => void) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -59,7 +59,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  setError(`Firestore error on ${path}: ${errInfo.error}`);
 }
 
 export default function App() {
@@ -105,28 +105,28 @@ export default function App() {
     const unsubSummary = onSnapshot(doc(db, 'summary', 'latest'), (snap) => {
       if (snap.exists()) setSummary(snap.data() as Summary);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'summary/latest');
+      handleFirestoreError(error, OperationType.GET, 'summary/latest', setError);
     });
 
     // Listen for clients
     const unsubClients = onSnapshot(collection(db, 'clients'), (snap) => {
       setClients(snap.docs.map(d => d.data() as ClientRevenue));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'clients');
+      handleFirestoreError(error, OperationType.LIST, 'clients', setError);
     });
 
     // Listen for invoices
     const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snap) => {
       setInvoices(snap.docs.map(d => d.data() as Invoice));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'invoices');
+      handleFirestoreError(error, OperationType.LIST, 'invoices', setError);
     });
 
     // Listen for sync metadata
     const unsubSync = onSnapshot(doc(db, 'metadata', 'sync'), (snap) => {
       if (snap.exists()) setSyncMetadata(snap.data());
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'metadata/sync');
+      handleFirestoreError(error, OperationType.GET, 'metadata/sync', setError);
     });
 
     return () => {
@@ -206,7 +206,13 @@ export default function App() {
 
         <div className="p-4 border-t border-gray-200">
           <div className="flex items-center gap-3 px-4 py-3 mb-4">
-            <img src={user.photoURL || ''} alt="" className="w-8 h-8 rounded-full border border-gray-200" />
+            {user.photoURL ? (
+              <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full border border-gray-200" />
+            ) : (
+              <div className="w-8 h-8 rounded-full border border-gray-200 bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
+                {user.displayName?.charAt(0) || user.email?.charAt(0) || '?'}
+              </div>
+            )}
             <div className="overflow-hidden">
               <p className="text-xs font-bold truncate text-gray-900">{user.displayName}</p>
               <p className="text-[10px] text-gray-400 truncate">{user.email}</p>

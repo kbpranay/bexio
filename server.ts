@@ -9,6 +9,7 @@ import fs from "fs";
 import dotenv from "dotenv";
 import cron from "node-cron";
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 
 dotenv.config();
 
@@ -18,7 +19,7 @@ admin.initializeApp({
   projectId: firebaseConfig.projectId,
 });
 
-const db = admin.firestore(firebaseConfig.firestoreDatabaseId);
+const db = getFirestore(admin.app(), firebaseConfig.firestoreDatabaseId);
 
 const app = express();
 const PORT = 3000;
@@ -120,11 +121,16 @@ async function syncBexioData() {
     const clientRevenueMap = new Map<string, { name: string; arr: number; pilot: number; onetime: number }>();
     const outstandingInvoices: any[] = [];
 
-    // Filter for 2026 data only using 'is_valid_from'
+    // Filter for current year data only (for YTD revenue totals)
     const currentYear = new Date().getFullYear().toString();
     const filteredInvoices = invoices.filter((inv: any) => (inv.is_valid_from || "").startsWith(currentYear));
 
-    console.log(`Fetched ${invoices.length} total invoices. Found ${filteredInvoices.length} invoices for ${currentYear}.`);
+    // All outstanding invoices regardless of year (so past-due invoices from prior years are included)
+    const allOutstandingInvoices = invoices.filter((inv: any) => {
+      return inv.kb_item_status_id === 8 || inv.kb_item_status_id === 7 || inv.kb_item_status_id === 16;
+    });
+
+    console.log(`Fetched ${invoices.length} total invoices. Found ${filteredInvoices.length} invoices for ${currentYear}. ${allOutstandingInvoices.length} outstanding across all years.`);
 
     for (const inv of filteredInvoices) {
       const clientName = contactMap.get(inv.contact_id) || "Unknown Client";
@@ -152,20 +158,6 @@ async function syncBexioData() {
         cashflowReceived += amount;
       } else if (isOutstanding) {
         cashflowPending += amount;
-        // Use is_valid_to instead of date_due
-        const dueDate = inv.is_valid_to || inv.is_valid_from;
-        const daysOutstanding = Math.max(0, Math.floor((Date.now() - new Date(dueDate).getTime()) / (1000 * 60 * 60 * 24)));
-
-        outstandingInvoices.push({
-          invoiceId: inv.id.toString(),
-          invoiceNumber: inv.document_nr,
-          clientName,
-          amount,
-          currency: inv.currency_id === 1 ? "CHF" : "EUR", // Fallback mapping, usually 1 is CHF
-          dueDate: dueDate,
-          daysOutstanding,
-          status: inv.kb_item_status_id === 8 ? "Overdue" : "Open"
-        });
       }
 
       const clientId = inv.contact_id.toString();
@@ -179,6 +171,25 @@ async function syncBexioData() {
       clientRevenueMap.set(clientId, clientData);
     }
 
+    // Build outstanding invoices list from ALL years (not just current year)
+    for (const inv of allOutstandingInvoices) {
+      const clientName = contactMap.get(inv.contact_id) || "Unknown Client";
+      const amount = parseFloat(inv.total);
+      const dueDate = inv.is_valid_to || inv.is_valid_from;
+      const daysOutstanding = Math.max(0, Math.floor((Date.now() - new Date(dueDate).getTime()) / (1000 * 60 * 60 * 24)));
+
+      outstandingInvoices.push({
+        invoiceId: inv.id.toString(),
+        invoiceNumber: inv.document_nr,
+        clientName,
+        amount,
+        currency: inv.currency_id === 1 ? "CHF" : "EUR",
+        dueDate: dueDate,
+        daysOutstanding,
+        status: inv.kb_item_status_id === 8 ? "Overdue" : "Open"
+      });
+    }
+
     const summary = {
       arr: totalArr,
       pilot: totalPilot,
@@ -188,8 +199,8 @@ async function syncBexioData() {
       updatedAt: new Date().toISOString()
     };
 
-    const clients = Array.from(clientRevenueMap.values()).map((data, idx) => ({
-      clientId: Array.from(clientRevenueMap.keys())[idx],
+    const clients = Array.from(clientRevenueMap.entries()).map(([clientId, data]) => ({
+      clientId,
       clientName: data.name,
       arr: data.arr,
       pilot: data.pilot,
